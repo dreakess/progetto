@@ -25,7 +25,7 @@
     // here we are inside the RAM of pc, so what we define here is the bridge between ram and gpu memory
     int main()
     {
-        const int arraySize = 2048;
+        const int arraySize = 16384;
         int a[arraySize], b[arraySize], c[arraySize] = { 0 }; // we need to remove the const prefix before because we have to modify this vector
         for (int i = 0; i < arraySize; ++i){
             a[i] = i;
@@ -102,7 +102,7 @@
         // Example of a benchmarking loop for the exercise
         size_t thread_counts[] = { 32, 64, 128, 256, 512, 1024 }; // Multiples of 32 (warp size) 
         size_t num_elements = std::size(thread_counts);
-        size_t trials = 100;
+        size_t trials = 200;
 
         std::cout << std::left << std::setw(10) << "Threads" 
               << "| " << std::setw(12) << "Avg Time(us)" 
