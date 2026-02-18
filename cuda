@@ -3,44 +3,40 @@
 
 #include <stdio.h>
 
-cudaError_t addWithCuda(int *c, const int *a, const int *b, const int N);
+cudaError_t addWithCuda(int *c, const int *a, const int *b, const int N); // prototype of the cuda function
 
-__global__ void addKernel(int *c, const int *a, const int *b)
+__global__ void addKernel(int *c, const int *a, const int *b, int N)
 {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int idx = blockIdx.x * blockDim.x + threadIdx.x; // this is the index inside the gpu
     if(idx >= N)
         return;
     c[idx] = a[idx] + b[idx];
 }
 
+
+
+// here we are inside the RAM of pc, so what we define here is the bridge between ram and gpu memory
 int main()
 {
     const int arraySize = 2048;
-    const int a[arraySize] = { 0 };
-    const int b[arraySize] = { 0 };
+    int a[arraySize], b[arraySize], c[arraySize] = { 0 }; // we need to remove the const prefix before because we have to modify this vector
     for (int i = 0; i < arraySize; ++i){
         a[i] = i;
         b[i] = arraySize - i;
     }
     int c[arraySize] = { 0 };
 
-    //[...]
-    size_t N_threads = 1024;
-    dim3 block_size( (arraySize + (N_threads - 1)) / N_threads); // (*2*, 1, 1)
-    dim3 thread_size(N_threads);
-    addKernel<<<block_size, thread_size>>>(dev_c, dev_a, dev_b, arraySize);
-    //[...]
-
-    for(int i=1500; i < 1510; i++)
-    {
-        printf("%d\n", c[i])
-    }
 
     // Add vectors in parallel.
     cudaError_t cudaStatus = addWithCuda(c, a, b, arraySize);
     if (cudaStatus != cudaSuccess) {
         fprintf(stderr, "addWithCuda failed!");
         return 1;
+    }
+    else{
+        for(int i=1500; i < 1510; i++) {
+            printf("%d\n", c[i]); // Fixed: added semicolon
+        }
     }
 
     // cudaDeviceReset must be called before exiting in order for profiling and
@@ -101,8 +97,26 @@ cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size)
         goto Error;
     }
 
-    // Launch a kernel on the GPU with one thread for each element.
-    addKernel<<<1, size>>>(dev_c, dev_a, dev_b);
+    // Example of a benchmarking loop for the exercise
+    size_t thread_counts[] = { 32, 64, 128, 256, 512, 1024 }; // Multiples of 32 (warp size) 
+
+    for (int t : thread_counts) {
+        size_t N_threads = t;
+        dim3 thread_size(N_threads);
+        dim3 block_size((arraySize + N_threads - 1) / N_threads); 
+
+        // Start timer here
+        for(int i = 0; i < 100; i++) { // Run 100 times for average ì
+            addKernel<<<block_size, thread_size>>>(dev_c, dev_a, dev_b, arraySize);
+        }
+        // cudaDeviceSynchronize waits for the kernel to finish, and returns
+        // any errors encountered during the launch.
+        cudaStatus = cudaDeviceSynchronize();
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+            goto Error;
+    }
+    }
 
     // Check for any errors launching the kernel
     cudaStatus = cudaGetLastError();
@@ -111,13 +125,6 @@ cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size)
         goto Error;
     }
     
-    // cudaDeviceSynchronize waits for the kernel to finish, and returns
-    // any errors encountered during the launch.
-    cudaStatus = cudaDeviceSynchronize();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
-        goto Error;
-    }
 
     // Copy output vector from GPU buffer to host memory.
     cudaStatus = cudaMemcpy(c, dev_c, size * sizeof(int), cudaMemcpyDeviceToHost);
