@@ -1,7 +1,10 @@
     #include "cuda_runtime.h"
     #include "device_launch_parameters.h"
-
     #include <stdio.h>
+    #include <chrono>
+    #include <iostream>  // Required for cout
+    #include <iomanip>   // Required for setw
+    #include <string>    // Required for string
 
     cudaError_t addWithCuda(int *c, const int *a, const int *b, const int N); // prototype of the cuda function
 
@@ -98,23 +101,44 @@
 
         // Example of a benchmarking loop for the exercise
         size_t thread_counts[] = { 32, 64, 128, 256, 512, 1024 }; // Multiples of 32 (warp size) 
+        size_t num_elements = std::size(thread_counts);
+        size_t trials = 100;
+
+        std::cout << std::left << std::setw(10) << "Threads" 
+              << "| " << std::setw(12) << "Avg Time(us)" 
+              << "| " << std::setw(15) << "Mem BW (GB/s)" 
+              << "| " << "Compute (GOPS)" << std::endl;
+        std::cout << std::string(65, '-') << std::endl;
 
         for (int t : thread_counts) {
             size_t N_threads = t;
             dim3 thread_size(N_threads);
             dim3 block_size((size + N_threads - 1) / N_threads); 
 
-            // Start timer here
-            for(int i = 0; i < 100; i++) { // Run 100 times for average ì
+            auto start = std::chrono::high_resolution_clock::now();
+
+
+            for(int i = 0; i < trials; i++) { // Run 100 times for average ì
                 addKernel<<<block_size, thread_size>>>(dev_c, dev_a, dev_b, size);
             }
-            // cudaDeviceSynchronize waits for the kernel to finish, and returns
-            // any errors encountered during the launch.
+
             cudaStatus = cudaDeviceSynchronize();
             if (cudaStatus != cudaSuccess) {
                 fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
                 goto Error;
             }
+
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> diff = end - start;
+            double avg_time_s = diff.count() / trials;
+            double bytes_moved = 3.0 * size * sizeof(int); // 2 Reads + 1 Write
+            double mem_bw_gbs = (bytes_moved / 1e9) / avg_time_s; 
+            double compute_gops = (size / 1e9) / avg_time_s;
+
+            std::cout << std::left << std::setw(10) << t 
+                  << "| " << std::setw(12) << std::fixed << std::setprecision(2) << (avg_time_s * 1e6)
+                  << "| " << std::setw(15) << mem_bw_gbs 
+                  << "| " << compute_gops << std::endl;
         }
 
         // Check for any errors launching the kernel
