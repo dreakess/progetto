@@ -6,7 +6,7 @@
     #include <iomanip>   // Required for setw
     #include <string>    // Required for string
 
-    cudaError_t addWithCuda(int *c, const int *a, const int *b, const int N); // prototype of the cuda function
+    cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int N); // prototype of the cuda function
 
 
 
@@ -25,13 +25,12 @@
     // here we are inside the RAM of pc, so what we define here is the bridge between ram and gpu memory
     int main()
     {
-        const int arraySize = 16384;
+        const int arraySize = 8388608;
         int a[arraySize], b[arraySize], c[arraySize] = { 0 }; // we need to remove the const prefix before because we have to modify this vector
         for (int i = 0; i < arraySize; ++i){
             a[i] = i;
             b[i] = arraySize - i;
         }
-        int c[arraySize] = { 0 };
 
 
         // Add vectors in parallel.
